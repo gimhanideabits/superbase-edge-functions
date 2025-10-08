@@ -1,0 +1,33 @@
+# Node
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS and IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.*.local
+.env.keys
+
+# Supabase CLI artifacts (duplicated in supabase/.gitignore for safety)
+supabase/.temp/
+supabase/.branches/
+
+# Keep config files like supabase/config.toml tracked
+!supabase/config.toml
