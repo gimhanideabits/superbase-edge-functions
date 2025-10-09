@@ -368,13 +368,13 @@ entrypoint = "./functions/login/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/login/*.html" ]
 
-[functions.protected]
+[functions.get-user]
 enabled = true
 verify_jwt = true
-import_map = "./functions/protected/deno.json"
+import_map = "./functions/get-user/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/protected/index.ts"
+entrypoint = "./functions/get-user/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/protected/*.html" ]
+# static_files = [ "./functions/get-user/*.html" ]

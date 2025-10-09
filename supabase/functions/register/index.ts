@@ -1,57 +1,142 @@
-import { serve } from "https://deno.land/std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import * as admin from "npm:firebase-admin";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const firebaseApp = admin.apps.length
-  ? admin.app()
-  : admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: Deno.env.get("FIREBASE_PROJECT_ID"),
-        clientEmail: Deno.env.get("FIREBASE_CLIENT_EMAIL"),
-        privateKey: Deno.env.get("FIREBASE_PRIVATE_KEY")?.replace(/\\n/g, "\n"),
-      }),
-    });
-
-const supabase = createClient(
-  Deno.env.get("PROJECT_URL")!,
-  Deno.env.get("ROLE_KEY")!
-);
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
-    const { email, password } = await req.json();
+    // Parse request body
+    const { name, email, password } = await req.json()
 
-    if (!email || !password)
-      return new Response("Email and password required", { status: 400 });
+    // Validate input
+    if (!name || !email || !password) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing required fields: name, email, and password are required' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
+    // Validate password length
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Password must be at least 6 characters long' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
-    const userRecord = await firebaseApp.auth().createUser({
-      email,
-      password,
-    });
+    // Get Firebase Web API Key from service account
+    const firebaseWebApiKey = Deno.env.get('FIREBASE_WEB_API_KEY')
+    
+    if (!firebaseWebApiKey) {
+      throw new Error('Firebase Web API Key not configured')
+    }
 
- 
-    const customToken = await firebaseApp.auth().createCustomToken(userRecord.uid);
+    // Step 1: Create user in Firebase using Web API
+    const firebaseResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseWebApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          displayName: name,
+          returnSecureToken: true,
+        }),
+      }
+    )
 
-    const { data, error } = await supabase
-      .from("users")
-      .insert([{ uid: userRecord.uid, email }])
-      .select();
+    if (!firebaseResponse.ok) {
+      const errorData = await firebaseResponse.json()
+      throw new Error(errorData.error?.message || 'Failed to create Firebase user')
+    }
 
-    if (error) throw error;
+    const firebaseUser = await firebaseResponse.json()
 
+    // Step 2: Initialize Supabase client with service role
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    // Step 3: Save user to Supabase database
+    const { data: dbUser, error: dbError } = await supabaseClient
+      .from('users')
+      .insert({
+        name,
+        email,
+        firebase_uid: firebaseUser.localId,
+      })
+      .select()
+      .single()
+
+    if (dbError) {
+      // If database insert fails, delete Firebase user (rollback)
+      await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${firebaseWebApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: firebaseUser.idToken }),
+        }
+      )
+      throw new Error(`Database error: ${dbError.message}`)
+    }
+
+    // Step 4: Return success response
     return new Response(
       JSON.stringify({
-        message: "User created successfully",
-        firebase_uid: userRecord.uid,
-        token: customToken,
+        success: true,
+        user: {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          firebase_uid: dbUser.firebase_uid,
+          created_at: dbUser.created_at,
+        },
       }),
-      { headers: { "Content-Type": "application/json" }, status: 201 }
-    );
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      headers: { "Content-Type": "application/json" },
-      status: 500,
-    });
+      { 
+        status: 201, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+
+  } catch (error) {
+    console.error('Registration error:', error)
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Internal server error during registration' 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
   }
-});
+})
