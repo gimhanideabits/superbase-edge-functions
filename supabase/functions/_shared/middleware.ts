@@ -1,6 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Types for better type safety
 export interface FirebaseUser {
   localId: string
   email: string
@@ -23,7 +22,6 @@ export interface MiddlewareContext {
   url: URL
 }
 
-// CORS headers - centralized configuration
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -31,10 +29,7 @@ export const corsHeaders = {
   'Content-Type': 'application/json',
 }
 
-/**
- * Handle CORS preflight requests
- * Returns Response if it's an OPTIONS request, null otherwise
- */
+
 export function handleCorsPreflightRequest(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -42,10 +37,7 @@ export function handleCorsPreflightRequest(req: Request): Response | null {
   return null
 }
 
-/**
- * Create standardized error response
- * Follows consistent error format across all functions
- */
+
 export function createErrorResponse(
   message: string, 
   status: number = 400,
@@ -60,9 +52,7 @@ export function createErrorResponse(
   )
 }
 
-/**
- * Create standardized success response
- */
+
 export function createSuccessResponse(
   data: any,
   status: number = 200,
@@ -77,10 +67,7 @@ export function createSuccessResponse(
   )
 }
 
-/**
- * Initialize Supabase client with optimized configuration
- * Reusable across all functions
- */
+
 export function createSupabaseClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -97,10 +84,7 @@ export function createSupabaseClient() {
   })
 }
 
-/**
- * Verify Firebase ID token
- * Centralized Firebase authentication logic
- */
+
 export async function verifyFirebaseToken(token: string): Promise<FirebaseUser> {
   const firebaseWebApiKey = Deno.env.get('FIREBASE_WEB_API_KEY')
   
@@ -135,9 +119,6 @@ export async function verifyFirebaseToken(token: string): Promise<FirebaseUser> 
   }
 }
 
-/**
- * Extract and verify Bearer token from Authorization header
- */
 export async function extractAndVerifyToken(req: Request): Promise<FirebaseUser> {
   const authHeader = req.headers.get('Authorization')
   
@@ -154,10 +135,6 @@ export async function extractAndVerifyToken(req: Request): Promise<FirebaseUser>
   return await verifyFirebaseToken(token)
 }
 
-/**
- * Authenticate user with Firebase using email/password
- * Used for login functionality
- */
 export async function authenticateWithFirebase(email: string, password: string): Promise<any> {
   const firebaseWebApiKey = Deno.env.get('FIREBASE_WEB_API_KEY')
   
@@ -186,9 +163,6 @@ export async function authenticateWithFirebase(email: string, password: string):
   return await response.json()
 }
 
-/**
- * Validate required fields in request body
- */
 export function validateRequiredFields(data: any, requiredFields: string[]): void {
   const missingFields = requiredFields.filter(field => !data[field])
   
@@ -197,9 +171,7 @@ export function validateRequiredFields(data: any, requiredFields: string[]): voi
   }
 }
 
-/**
- * Get query parameter with validation
- */
+
 export function getRequiredQueryParam(url: URL, paramName: string): string {
   const value = url.searchParams.get(paramName)
   
@@ -210,10 +182,7 @@ export function getRequiredQueryParam(url: URL, paramName: string): string {
   return value
 }
 
-/**
- * Middleware wrapper for common request handling
- * Handles CORS, creates context, and provides error handling
- */
+
 export async function withMiddleware(
   req: Request,
   handler: (req: Request, context: MiddlewareContext) => Promise<Response>,
@@ -272,10 +241,7 @@ export async function withMiddleware(
   }
 }
 
-/**
- * Sanitize user data for response
- * Removes sensitive fields and formats data consistently
- */
+
 export function sanitizeUserData(user: any) {
   return {
     id: user.id,
